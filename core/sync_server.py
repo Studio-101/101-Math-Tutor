@@ -395,6 +395,13 @@ class SyncServerHandler(BaseHTTPRequestHandler):
                 self.wfile.write(b'{"status":"error","message":"Expected multipart/form-data"}')
                 return
 
+            # Security: Cap maximum upload body size to 25MB to prevent memory exhaustion
+            if content_length > 25 * 1024 * 1024:
+                self.send_response(413)
+                self.end_headers()
+                self.wfile.write(b'{"status":"error","message":"Payload too large (max 25MB)"}')
+                return
+
             body = self.rfile.read(content_length)
             
             # Simple multipart/form-data parser for image and text fields

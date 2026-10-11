@@ -24,6 +24,10 @@ def execute_python_code(code_str: str, timeout_sec: int = 15) -> tuple[bool, str
         env = os.environ.copy()
         env["PYTHONIOENCODING"] = "utf-8"
         env["PYTHONUTF8"] = "1"
+        # Security: Scrub sensitive environment variables to prevent accidental exfiltration by generated scripts
+        for k in list(env.keys()):
+            if any(s in k.upper() for s in ("KEY", "TOKEN", "SECRET", "AUTH", "PASS", "CREDENTIAL")):
+                env.pop(k, None)
 
         proc = subprocess.run(
             [sys.executable, "-X", "utf8", str(temp_file)],
