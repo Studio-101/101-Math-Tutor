@@ -19,6 +19,8 @@ from core.sync_server import (
     generate_qr_code_image,
     pop_latest_upload,
     start_sync_server,
+    _SESSIONS,
+    _SESSIONS_LOCK,
 )
 
 # ---------------------------------------------------------
@@ -35,6 +37,20 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+# 手機上傳模式：雲端部署時 QR Code 會指向 ?upload=<session_id>
+upload_session_id = st.query_params.get("upload")
+if upload_session_id:
+    mobile_file = st.file_uploader("拍照或選擇圖片", type=["png", "jpg", "jpeg", "webp"])
+    mobile_note = st.text_input("備註（選填）")
+    if mobile_file and st.button("傳送給電腦", use_container_width=True):
+        with _SESSIONS_LOCK:
+            _SESSIONS.setdefault(upload_session_id, []).append({
+                "image_bytes": mobile_file.getvalue(),
+                "note": mobile_note,
+            })
+        st.success("已傳送！請回到電腦畫面。")
+    st.stop()
 
 st.markdown(
     """
@@ -291,7 +307,11 @@ def upload_draft_dialog():
     tab_mobile, tab_pc = st.tabs(["📲 手機拍照即時上傳", "📁 從電腦選擇檔案"])
 
     with tab_mobile:
-        sync_url_tutor = get_sync_url(st.session_state.sync_session_id)
+        host = st.context.headers.get("Host", "")
+        if host.startswith(("localhost", "127.0.0.1")):
+            sync_url_tutor = get_sync_url(st.session_state.sync_session_id)
+        else:
+            sync_url_tutor = f"https://{host}/?upload={st.session_state.sync_session_id}"
         qr_bytes_tutor = generate_qr_code_image(sync_url_tutor)
         col_tqr, col_tdesc = st.columns([1, 2])
         with col_tqr:
