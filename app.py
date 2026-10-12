@@ -128,6 +128,30 @@ def reset_session():
         del st.session_state.incoming_mobile_draft
 
 
+def format_friendly_error(e: Exception, action_desc: str = "解題") -> str:
+    err_str = str(e)
+    if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str or "quota" in err_str.lower():
+        return (
+            f"⚠️ **{action_desc}中斷：Gemini API 額度或頻率已達上限**\n\n"
+            "Google 免費金鑰有每分鐘請求頻率上限（RPM）。\n\n"
+            "**建議排解方式：**\n"
+            "1. 請稍候約 30～60 秒後，在下方再次發送訊息重試。\n"
+            "2. 或至左側側邊欄更換另一組免費 Gemini API Key。\n"
+            "3. 亦可在側邊欄嘗試切換模型（如 Gemini 2.5 Flash）。"
+        )
+    elif "API_KEY_INVALID" in err_str or "api key not valid" in err_str.lower() or "invalid api key" in err_str.lower():
+        return (
+            f"⚠️ **{action_desc}中斷：Gemini API Key 無效**\n\n"
+            "請檢查左側側邊欄輸入的金鑰是否正確無誤（確認前後無多餘空格）。"
+        )
+    else:
+        return (
+            f"⚠️ **{action_desc}過程發生異常：**\n\n"
+            f"> {err_str}\n\n"
+            "建議稍候片刻再試，或點擊左側「🔄 開啟新題目 / 重設對話」重新開始。"
+        )
+
+
 # ---------------------------------------------------------
 # Sidebar Configuration
 # ---------------------------------------------------------
@@ -506,8 +530,12 @@ if st.session_state.get("waiting_for_tutor", False):
                         "content": first_msg,
                     })
                 except Exception as e:
-                    status.update(label=f"❌ 處理失敗：{str(e)}", state="error", expanded=True)
-                    st.error(f"分析題目過程發生異常：{str(e)}")
+                    status.update(label="❌ 處理中斷", state="error", expanded=True)
+                    friendly_error = format_friendly_error(e, action_desc="審題與驗證")
+                    st.session_state.chat_history.append({
+                        "role": "assistant",
+                        "content": friendly_error,
+                    })
                 finally:
                     st.session_state.waiting_for_tutor = False
             st.rerun()
@@ -527,7 +555,11 @@ if st.session_state.get("waiting_for_tutor", False):
                         "content": tutor_reply,
                     })
                 except Exception as e:
-                    st.error(f"對話發生錯誤：{str(e)}")
+                    friendly_error = format_friendly_error(e, action_desc="對話引導")
+                    st.session_state.chat_history.append({
+                        "role": "assistant",
+                        "content": friendly_error,
+                    })
                 finally:
                     st.session_state.waiting_for_tutor = False
             st.rerun()
