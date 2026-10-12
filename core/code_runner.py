@@ -2,6 +2,7 @@ import os
 import sys
 import subprocess
 import tempfile
+import uuid
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -16,7 +17,7 @@ def execute_python_code(code_str: str, timeout_sec: int = 15) -> tuple[bool, str
         (success: bool, output: str)
     """
     SCRATCH_DIR.mkdir(parents=True, exist_ok=True)
-    temp_file = SCRATCH_DIR / "verify_temp.py"
+    temp_file = SCRATCH_DIR / f"verify_temp_{uuid.uuid4().hex}.py"
     
     try:
         temp_file.write_text(code_str, encoding="utf-8")
@@ -52,4 +53,4 @@ def execute_python_code(code_str: str, timeout_sec: int = 15) -> tuple[bool, str
         return False, f"Error executing script: {str(e)}"
     finally:
         # Keep the latest scratch file for debugging if needed, or clean up if desired
-        pass
+        temp_file.unlink(missing_ok=True)
