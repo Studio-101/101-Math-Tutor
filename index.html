@@ -528,7 +528,7 @@
             // Push assistant call and tool response
             solverContents.push({ role: "model", parts: [fnCallPart] });
             solverContents.push({
-              role: "function",
+              role: "user",
               parts: [{
                 functionResponse: {
                   name: "execute_math_verification_script",
