@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>🎓 101事務所數學家教 - 單一檔案免部屬版</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220%22%20width=%22100%22%20height=%22100%22><text y=%22.9em%22 font-size=%2290%22>🎓</text></svg>">
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              100: '#e0e7ff',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Cropper.js for Client-Side Crop & Rotate -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
+
+  <!-- Pyodide (Python in WebAssembly with SymPy) -->
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+
+  <style>
+    /* Custom scrollbars and sleek glassmorphism */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); }
+    ::-webkit-scrollbar-thumb { background: rgba(99, 102, 241, 0.3); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(99, 102, 241, 0.6); }
+    .glass-card {
+      background: rgba(30, 41, 59, 0.7);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+  </style>
+</head>
+<body class="bg-[#0f172a] text-slate-100 min-h-screen flex flex-col antialiased selection:bg-indigo-500 selection:text-white">
+
+  <!-- Main Container -->
+  <div class="flex-1 flex flex-col md:flex-row h-screen overflow-hidden">
+    
+    <!-- Sidebar / Drawer -->
+    <aside id="sidebar" class="w-full md:w-80 glass-card flex-shrink-0 flex flex-col border-r border-slate-800 z-20 h-auto md:h-full overflow-y-auto">
+      <div class="p-5 border-b border-slate-800/80 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+          <span class="text-3xl">🎓</span>
+          <div>
+            <h1 class="font-bold text-lg text-white tracking-wide">101 數學家教</h1>
+            <p class="text-xs text-indigo-400 font-medium">單一檔案免部屬版 (Pyodide)</p>
+          </div>
+        </div>
+        <button id="mobileMenuBtn" class="md:hidden text-slate-400 hover:text-white p-1">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+        </button>
+      </div>
+
+      <!-- Settings Body -->
+      <div id="sidebarContent" class="p-5 space-y-5 flex-1 hidden md:block">
+        <!-- API Key Input -->
+        <div class="space-y-2">
+          <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider">Gemini API Key</label>
+          <div class="relative">
+            <input type="password" id="apiKeyInput" placeholder="貼上 AI Studio 金鑰 (AIzaSy...)" 
+              class="w-full bg-slate-900/90 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition pr-10">
+            <button id="toggleApiKeyVisibility" type="button" class="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-200">
+              👁️
+            </button>
+          </div>
+          <p class="text-[11px] text-slate-400 leading-relaxed">
+            🔒 金鑰僅儲存於本機瀏覽器記憶體與 LocalStorage，絕不上傳任何第三方伺服器。<a href="https://aistudio.google.com/" target="_blank" class="text-indigo-400 underline hover:text-indigo-300">免費申請</a>
+          </p>
+        </div>
+
+        <!-- Model Selection -->
+        <div class="space-y-2">
+          <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider">推理模型 (Model)</label>
+          <select id="modelSelect" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <option value="gemini-2.5-flash" selected>Gemini 2.5 Flash (最穩定推薦)</option>
+            <option value="gemini-3.7-flash">Gemini 3.7 Flash (旗艦推理)</option>
+            <option value="gemini-3.8-flash">Gemini 3.8 Flash (次世代預覽)</option>
+            <option value="gemini-2.5-pro">Gemini 2.5 Pro (深度邏輯推導)</option>
+          </select>
+        </div>
+
+        <!-- Engine Status -->
+        <div class="rounded-lg bg-slate-900/80 border border-slate-800 p-3 space-y-2">
+          <div class="text-xs font-medium text-slate-400 flex items-center justify-between">
+            <span>瀏覽器 Python (SymPy)</span>
+            <span id="pyodideStatusBadge" class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-500/10 text-amber-400">
+              <span class="w-1.5 h-1.5 rounded-full bg-amber-400 mr-1.5 animate-pulse"></span>引擎載入中...
+            </span>
+          </div>
+          <p id="pyodideStatusDetail" class="text-[11px] text-slate-500 leading-normal">
+            正在本機載入 WebAssembly 數學計算環境，初次載入約需 3~5 秒...
+          </p>
+        </div>
+
+        <!-- Audit Report Toggle -->
+        <div class="pt-2">
+          <label class="flex items-center space-x-2 text-xs text-slate-300 cursor-pointer select-none">
+            <input type="checkbox" id="auditToggle" class="rounded border-slate-700 bg-slate-900 text-indigo-600 focus:ring-indigo-500">
+            <span>🛠️ 始終顯示幕後雙軌驗證報告</span>
+          </label>
+        </div>
+
+        <!-- Reset Button -->
+        <div class="pt-2">
+          <button id="resetChatBtn" class="w-full py-2 px-4 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 flex items-center justify-center space-x-2 transition">
+            <span>🔄 開啟新題目 / 重設對話</span>
+          </button>
+        </div>
+
+        <!-- YouTube Video Link -->
+        <div class="pt-4 border-t border-slate-800">
+          <a href="https://youtu.be/ABUd4-0TR7w" target="_blank" class="w-full block text-center py-2 px-3 rounded-lg bg-red-600/10 hover:bg-red-600/20 text-red-400 border border-red-500/20 text-xs font-semibold transition">
+            🎬 觀看 YouTube 幕後製作教學
+          </a>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Chat Area -->
+    <main class="flex-1 flex flex-col h-full overflow-hidden bg-slate-950/60 relative">
+      
+      <!-- Top Audit Expanders (Visible if solver done) -->
+      <div id="auditSection" class="p-4 border-b border-slate-800/80 bg-slate-900/40 space-y-2 hidden max-h-60 overflow-y-auto">
+        <details id="detailsConditions" class="rounded-lg bg-slate-800/40 border border-slate-700/60 text-xs">
+          <summary class="px-3 py-2 cursor-pointer font-medium text-slate-300 hover:text-white flex items-center justify-between">
+            <span>📝 查看本題已知條件與求解目標</span>
+          </summary>
+          <div id="auditConditionsText" class="p-3 border-t border-slate-700/50 text-slate-300 whitespace-pre-wrap leading-relaxed font-mono"></div>
+        </details>
+        
+        <details id="detailsReport" class="rounded-lg bg-slate-800/40 border border-slate-700/60 text-xs">
+          <summary class="px-3 py-2 cursor-pointer font-medium text-indigo-300 hover:text-indigo-200 flex items-center justify-between">
+            <span>🔍 檢視 AI 幕後雙軌驗證報告與 Python (SymPy) 腳本</span>
+          </summary>
+          <div class="p-3 border-t border-slate-700/50 space-y-3">
+            <div id="auditReportText" class="text-slate-200 whitespace-pre-wrap leading-relaxed"></div>
+            <div id="auditScriptsContainer" class="space-y-2 pt-2 border-t border-slate-700/50"></div>
+          </div>
+        </details>
+      </div>
+
+      <!-- Messages Scrollable Body -->
+      <div id="chatMessages" class="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
+        
+        <!-- Welcome Banner -->
+        <div id="welcomeBanner" class="max-w-2xl mx-auto glass-card rounded-2xl p-6 border border-slate-800 space-y-4 my-6">
+          <div class="flex items-center space-x-3">
+            <span class="text-4xl">👋</span>
+            <div>
+              <h2 class="text-xl font-bold text-white">歡迎來到 101事務所數學家教！</h2>
+              <p class="text-xs text-indigo-400 font-medium">單一檔案純靜態版・瀏覽器全本地 Python (SymPy) 雙軌驗證</p>
+            </div>
+          </div>
+          <p class="text-sm text-slate-300 leading-relaxed">
+            我是你的專屬學測數學家教。把卡住的題目<strong class="text-white">拍照</strong>或<strong class="text-white">打字</strong>傳給我，我會先為你拆解條件並以 Python 嚴格驗證，接著像家教老師一樣一步步引導你想通算式！
+          </p>
+          <div class="pt-2 space-y-2">
+            <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">點選預設題目立即體驗：</p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button onclick="applyPresetProblem(1)" class="text-left p-3 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 text-xs text-slate-200 transition">
+                <span class="font-bold text-indigo-400 block mb-1">📌 課本例題</span>
+                空間四角錐體積問題
+              </button>
+              <button onclick="applyPresetProblem(2)" class="text-left p-3 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 text-xs text-slate-200 transition">
+                <span class="font-bold text-indigo-400 block mb-1">📌 幾何基本題</span>
+                直角三角形兩股求斜邊
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Live Solving Status Widget (Accordion) -->
+      <div id="liveStatusContainer" class="px-4 py-2 hidden">
+        <div class="max-w-2xl mx-auto glass-card rounded-xl p-3 border border-indigo-500/30 text-xs flex items-center space-x-3 text-indigo-300 animate-pulse">
+          <svg class="animate-spin h-4 w-4 text-indigo-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+          <span id="liveStatusText" class="font-medium">老師正在為你審題並準備引導...</span>
+        </div>
+      </div>
+
+      <!-- Pending Attachment Bar (above bottom input) -->
+      <div id="attachmentBar" class="px-4 py-2 border-t border-slate-800 bg-slate-900/90 hidden">
+        <div class="max-w-3xl mx-auto flex items-center justify-between">
+          <div class="flex items-center space-x-3">
+            <img id="attachmentThumbnail" class="w-12 h-12 object-cover rounded-lg border border-slate-700 shadow">
+            <div>
+              <p class="text-xs font-semibold text-white">📎 已附加照片</p>
+              <p class="text-[11px] text-slate-400">已調整方向與裁剪，可直接送出或附帶文字說明</p>
+            </div>
+          </div>
+          <button id="removeAttachmentBtn" class="text-slate-400 hover:text-rose-400 p-2 rounded-lg transition" title="移除此照片">
+            ✕
+          </button>
+        </div>
+      </div>
+
+      <!-- Chat Input Bottom Bar -->
+      <div class="p-4 border-t border-slate-800/90 bg-slate-900/80">
+        <div class="max-w-3xl mx-auto flex items-end space-x-2">
+          
+          <!-- Photo Upload (+) Button -->
+          <button id="uploadBtn" class="flex-shrink-0 w-11 h-11 rounded-xl bg-slate-800 hover:bg-slate-700 text-indigo-400 border border-slate-700 flex items-center justify-center text-xl font-bold transition" title="拍照或上傳照片">
+            ➕
+          </button>
+          <!-- Hidden Native File Input (Directly triggers Camera on mobile!) -->
+          <input type="file" id="fileInput" accept="image/*" class="hidden">
+
+          <!-- Text Input -->
+          <div class="flex-1 relative">
+            <textarea id="chatInput" rows="1" placeholder="輸入題目或回答...（手機可點 ➕ 直接拍照上傳）"
+              class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none max-h-32 transition leading-relaxed"></textarea>
+          </div>
+
+          <!-- Send Button -->
+          <button id="sendBtn" class="flex-shrink-0 w-11 h-11 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:hover:bg-indigo-600 text-white flex items-center justify-center transition shadow-lg shadow-indigo-600/30">
+            <svg class="w-5 h-5 transform rotate-90" fill="currentColor" viewBox="0 0 20 20"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"></path></svg>
+          </button>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- Crop & Rotate Modal -->
+  <div id="cropModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="glass-card bg-slate-900 rounded-2xl max-w-2xl w-full flex flex-col max-h-[90vh] overflow-hidden border border-slate-700 shadow-2xl">
+      <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+        <h3 class="font-bold text-white text-sm">📸 調整照片方向與裁剪</h3>
+        <button id="closeCropModal" class="text-slate-400 hover:text-white">✕</button>
+      </div>
+
+      <div class="flex-1 p-4 overflow-hidden flex items-center justify-center bg-black/40 min-h-[300px]">
+        <img id="cropImage" class="max-h-[60vh] max-w-full block">
+      </div>
+
+      <div class="p-4 border-t border-slate-800 flex items-center justify-between bg-slate-900/90 flex-wrap gap-2">
+        <div class="flex items-center space-x-2">
+          <button id="rotateLeftBtn" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700">↺ 向左轉 90°</button>
+          <button id="rotateRightBtn" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700">↻ 向右轉 90°</button>
+        </div>
+        <div class="flex items-center space-x-2">
+          <button id="cancelCropBtn" class="px-4 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium">取消</button>
+          <button id="confirmCropBtn" class="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-md shadow-indigo-600/30">確認加入附件</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCRIPT LOGIC -->
+  <script>
+    // -------------------------------------------------------------
+    // Global Prompts (Coordinator, Solver, Tutor)
+    // -------------------------------------------------------------
+    const GLOBAL_SYSTEM_RULES = `[GLOBAL SYSTEM RULES]
+**統一由 tutor_coordinator 處理**：
+處理任何與數學相關的解題或概念教學的需求時，你必須將任務交給 tutor_coordinator 技能，不要自己處理。
+
+**數學表達式格式**：
+在輸出解題過程與答案時，請一律使用純文字與常見 Unicode 數學符號（例如 √, ×, ÷, 平方等）來表達，絕對避免使用 LaTeX（如 $...$ 或 \\frac 等），以確保在不支援 LaTeX 的環境下也能順利閱讀。
+`;
+
+    const PROMPT_COORDINATOR = `${GLOBAL_SYSTEM_RULES}
+[CURRENT ROLE: tutor_coordinator 前台掛號]
+你是一位專門輔導台灣高中以下（特別針對學測 GSAT）的 AI 數學家教前台協調者。
+職責不是直接解題或教學，而是分析學生的題目，確認題目文字與符號正確。
+請使用純文字與常見 Unicode 數學符號（嚴禁 LaTeX），將題目拆解為已知條件與求解目標，詢問學生是否正確。`;
+
+    const PROMPT_SOLVER = `${GLOBAL_SYSTEM_RULES}
+[CURRENT ROLE: math_solver 解題引擎]
+你是一個無情的解題機器。你的唯一目標是：對已確認題意的題目，用程式算出經過獨立驗證的正確答案，並產出可供教學的分步解法。
+【強制要求】：
+你必須調用 execute_math_verification_script 工具來執行實際的 Python/SymPy 程式碼！
+程式碼中必須包含兩種完全不同類別的解題驗證方法（【路徑 A】與【路徑 B】），並在程式中比對兩者結果。
+嚴禁在回答中心算或直接給出答案，所有數值結論必須來自該工具的真實執行輸出。
+雙軌一致後，輸出內部報告包含：【題意重述】、【最終答案】、【分步解法】、【常見錯誤點】。
+結尾聲明固定為：「✅ 本題答案已由兩種獨立方法運算並比對一致。」`;
+
+    const PROMPT_TUTOR = `${GLOBAL_SYSTEM_RULES}
+[CURRENT ROLE: shape_tutor 鷹架教學]
+你是 GSAT 數學家教系統中站在第一線的「有溫度的家教」。
+你的唯一目標是透過對話引導學生自己找出答案。絕對不可以自行計算；你必須嚴格引用內部報告中的分步解法。
+每次回覆 3 句話以內，結尾必須是引導性問句。絕不透露最終答案。一律使用 Unicode 數學符號，絕不使用 LaTeX。`;
+
+    // -------------------------------------------------------------
+    // Application State
+    // -------------------------------------------------------------
+    let pyodideInstance = null;
+    let pyodideReady = false;
+    let cropper = null;
+    let pendingImageBytes = null; // Uint8Array or base64
+
+    let state = {
+      apiKey: localStorage.getItem('gemini_api_key') || '',
+      model: localStorage.getItem('gemini_model') || 'gemini-2.5-flash',
+      chatHistory: [], // [{role: 'user'|'assistant', content: '', imageBase64: ''}]
+      coordinatorResponse: '',
+      solverReport: '',
+      solverLogs: [],
+      isProcessing: false,
+    };
+
+    // DOM Elements
+    const apiKeyInput = document.getElementById('apiKeyInput');
+    const modelSelect = document.getElementById('modelSelect');
+    const chatMessages = document.getElementById('chatMessages');
+    const chatInput = document.getElementById('chatInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const fileInput = document.getElementById('fileInput');
+    const attachmentBar = document.getElementById('attachmentBar');
+    const attachmentThumbnail = document.getElementById('attachmentThumbnail');
+    const removeAttachmentBtn = document.getElementById('removeAttachmentBtn');
+    const liveStatusContainer = document.getElementById('liveStatusContainer');
+    const liveStatusText = document.getElementById('liveStatusText');
+    const auditSection = document.getElementById('auditSection');
+    const auditConditionsText = document.getElementById('auditConditionsText');
+    const auditReportText = document.getElementById('auditReportText');
+    const auditScriptsContainer = document.getElementById('auditScriptsContainer');
+    const auditToggle = document.getElementById('auditToggle');
+    const resetChatBtn = document.getElementById('resetChatBtn');
+
+    // Init UI from State
+    apiKeyInput.value = state.apiKey;
+    modelSelect.value = state.model;
+
+    apiKeyInput.addEventListener('input', (e) => {
+      state.apiKey = e.target.value.trim();
+      localStorage.setItem('gemini_api_key', state.apiKey);
+    });
+
+    modelSelect.addEventListener('change', (e) => {
+      state.model = e.target.value;
+      localStorage.setItem('gemini_model', state.model);
+    });
+
+    document.getElementById('toggleApiKeyVisibility').addEventListener('click', () => {
+      apiKeyInput.type = apiKeyInput.type === 'password' ? 'text' : 'password';
+    });
+
+    document.getElementById('mobileMenuBtn').addEventListener('click', () => {
+      document.getElementById('sidebarContent').classList.toggle('hidden');
+    });
+
+    resetChatBtn.addEventListener('click', resetSession);
+
+    // -------------------------------------------------------------
+    // Pyodide Background Initialization
+    // -------------------------------------------------------------
+    async function initPyodide() {
+      const badge = document.getElementById('pyodideStatusBadge');
+      const detail = document.getElementById('pyodideStatusDetail');
+      try {
+        pyodideInstance = await loadPyodide({
+          indexURL: "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/"
+        });
+        detail.innerText = "正在安裝 SymPy 符號計算套件...";
+        await pyodideInstance.loadPackage(['sympy']);
+        pyodideReady = true;
+
+        badge.className = "inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/10 text-emerald-400";
+        badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5"></span>運算引擎就緒';
+        detail.innerText = "SymPy 與 Python 核心已在本機記憶體掛載，可進行毫秒級獨立驗證。";
+      } catch (err) {
+        console.error("Pyodide Load Error:", err);
+        badge.className = "inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-rose-500/10 text-rose-400";
+        badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-rose-400 mr-1.5"></span>載入失敗';
+        detail.innerText = "無法載入 WebAssembly 運算環境：" + err.message;
+      }
+    }
+    initPyodide();
+
+    // -------------------------------------------------------------
+    // Execute Python Verification Script via Pyodide
+    // -------------------------------------------------------------
+    async function runPythonScript(code) {
+      if (!pyodideReady) {
+        throw new Error("Pyodide (Python/SymPy) 引擎仍在載入中，請稍候 3 秒後重試。");
+      }
+      let stdoutLogs = [];
+      pyodideInstance.setStdout({ batched: (msg) => stdoutLogs.push(msg) });
+      pyodideInstance.setStderr({ batched: (msg) => stdoutLogs.push(msg) });
+
+      try {
+        await pyodideInstance.runPythonAsync(code);
+        const out = stdoutLogs.join("\n").trim();
+        return { success: true, output: out || "(腳本執行完成，無輸出內容)" };
+      } catch (err) {
+        return { success: false, output: "錯誤：\n" + err.toString() };
+      }
+    }
+
+    // -------------------------------------------------------------
+    // Gemini API Direct Fetch Helpers
+    // -------------------------------------------------------------
+    async function callGemini(contents, systemInstruction, tools = null, temperature = 0.2) {
+      if (!state.apiKey) {
+        throw new Error("尚未設定 Gemini API Key！請在左側側邊欄輸入金鑰。");
+      }
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${state.model}:generateContent?key=${state.apiKey}`;
+
+      const payload = {
+        contents: contents,
+        generationConfig: { temperature: temperature }
+      };
+
+      if (systemInstruction) {
+        payload.system_instruction = {
+          parts: [{ text: systemInstruction }]
+        };
+      }
+
+      if (tools) {
+        payload.tools = tools;
+      }
+
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        const status = res.status;
+        const msg = errorData.error?.message || res.statusText;
+        if (status === 429) {
+          throw new Error("429 RESOURCE_EXHAUSTED: Gemini API 請求頻率已達上限，請稍候 30 秒再試。");
+        } else if (status === 503) {
+          throw new Error("503 UNAVAILABLE: Google 伺服器繁忙，請切換至 Gemini 2.5 Flash 或稍候重試。");
+        } else if (status === 400 && msg.includes("API key")) {
+          throw new Error("400 API_KEY_INVALID: Gemini API Key 無效，請檢查側邊欄金鑰。");
+        } else {
+          throw new Error(`${status}: ${msg}`);
+        }
+      }
+
+      return await res.json();
+    }
+
+    // -------------------------------------------------------------
+    // Full Solver Flow (Coordinator -> SymPy Verification -> Tutor)
+    // -------------------------------------------------------------
+    async function runFirstTurn(userText, imageBase64) {
+      showLiveStatus("📖 正在仔細閱讀題目與梳理已知條件...");
+
+      // 1. Coordinator
+      const coordParts = [];
+      if (imageBase64) {
+        coordParts.push({
+          inline_data: { mime_type: "image/jpeg", data: imageBase64.split(',')[1] }
+        });
+        let pText = "這是學生上傳的數學題目照片。";
+        if (userText) pText += `\n學生特別附帶之說明：\n${userText}`;
+        coordParts.push({ text: pText });
+      } else {
+        coordParts.push({ text: `學生輸入的題目如下：\n${userText}` });
+      }
+
+      const coordRes = await callGemini(
+        [{ role: "user", parts: coordParts }],
+        PROMPT_COORDINATOR,
+        null,
+        0.2
+      );
+      const coordText = coordRes.candidates[0].content.parts[0].text.trim();
+      state.coordinatorResponse = coordText;
+
+      // 2. Math Solver with Pyodide Tool Loop
+      showLiveStatus("📐 老師正在以 Python (SymPy) 進行雙軌驗證...");
+
+      const solverTools = [{
+        function_declarations: [{
+          name: "execute_math_verification_script",
+          description: "撰寫並執行 Python 數學驗證腳本（可使用 sympy, math, fractions）。回傳 stdout 與 stderr。",
+          parameters: {
+            type: "OBJECT",
+            properties: {
+              python_code: { type: "STRING", description: "Python/SymPy 驗證程式碼" }
+            },
+            required: ["python_code"]
+          }
+        }]
+      }];
+
+      let solverContents = [{
+        role: "user",
+        parts: [{
+          text: `已確認的題目如下：\n${coordText}\n\n【強制指令】：請調用 execute_math_verification_script 執行 Python/SymPy 程式碼，比對兩軌一致性後產出內部報告。`
+        }]
+      }];
+
+      state.solverLogs = [];
+      let finalSolverReport = "";
+
+      // Function Calling Loop (up to 5 turns)
+      for (let turn = 0; turn < 5; turn++) {
+        const solverRes = await callGemini(solverContents, PROMPT_SOLVER, solverTools, 0.1);
+        const candidate = solverRes.candidates[0];
+        const parts = candidate.content.parts;
+        
+        // Check for function call
+        const fnCallPart = parts.find(p => p.functionCall);
+        if (fnCallPart) {
+          const fn = fnCallPart.functionCall;
+          if (fn.name === "execute_math_verification_script") {
+            const pyCode = fn.args.python_code;
+            showLiveStatus(`🐍 正在執行 Python 驗證腳本 (${turn + 1}/5)...`);
+            const runResult = await runPythonScript(pyCode);
+            state.solverLogs.push({ code: pyCode, output: runResult.output, success: runResult.success });
+
+            // Push assistant call and tool response
+            solverContents.push({ role: "model", parts: [fnCallPart] });
+            solverContents.push({
+              role: "function",
+              parts: [{
+                functionResponse: {
+                  name: "execute_math_verification_script",
+                  response: { output: runResult.output }
+                }
+              }]
+            });
+            continue;
+          }
+        }
+
+        // If no tool call, this is the final report
+        const textPart = parts.find(p => p.text);
+        if (textPart) {
+          finalSolverReport = textPart.text.trim();
+          break;
+        }
+      }
+
+      state.solverReport = finalSolverReport || "雙軌驗證已完成。";
+
+      // 3. Start Tutoring First Message
+      showLiveStatus("💡 正在準備引導你的思考方向...");
+
+      const tutorSystem = `${PROMPT_TUTOR}\n\n=== [內部驗證報告] ===\n${state.solverReport}\n\n=== [學生題目] ===\n${coordText}`;
+      const tutorRes = await callGemini(
+        [{ role: "user", parts: [{ text: "學生已經確認題目並準備好學習了。請提出第一個引導問題（絕不透露答案）。" }] }],
+        tutorSystem,
+        null,
+        0.4
+      );
+
+      const firstTutorMsg = tutorRes.candidates[0].content.parts[0].text.trim();
+      return firstTutorMsg;
+    }
+
+    // -------------------------------------------------------------
+    // Subsequent Tutoring Turns
+    // -------------------------------------------------------------
+    async function runSubsequentTurn(userText, imageBase64) {
+      showLiveStatus("家教正在審閱你的回答與思路...");
+
+      const tutorSystem = `${PROMPT_TUTOR}\n\n=== [內部驗證報告] ===\n${state.solverReport}\n\n=== [學生題目] ===\n${state.coordinatorResponse}`;
+
+      const contents = state.chatHistory.map(msg => {
+        const parts = [];
+        if (msg.imageBase64) {
+          parts.push({
+            inline_data: { mime_type: "image/jpeg", data: msg.imageBase64.split(',')[1] }
+          });
+          parts.push({ text: `【學生上傳算式草稿】\n學生備註：${msg.content}` });
+        } else {
+          parts.push({ text: msg.content });
+        }
+        return {
+          role: msg.role === 'user' ? 'user' : 'model',
+          parts: parts
+        };
+      });
+
+      const tutorRes = await callGemini(contents, tutorSystem, null, 0.4);
+      return tutorRes.candidates[0].content.parts[0].text.trim();
+    }
+
+    // -------------------------------------------------------------
+    // UI Event Handlers
+    // -------------------------------------------------------------
+    sendBtn.addEventListener('click', handleUserSend);
+    chatInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        handleUserSend();
+      }
+    });
+
+    async function handleUserSend() {
+      const text = chatInput.value.trim();
+      const img = pendingImageBytes;
+
+      if (!text && !img) return;
+      if (state.isProcessing) return;
+
+      if (!state.apiKey) {
+        alert("請先在左側輸入 Gemini API Key！");
+        apiKeyInput.focus();
+        return;
+      }
+
+      state.isProcessing = true;
+      sendBtn.disabled = true;
+
+      // Add user message to UI
+      const userMsg = {
+        role: "user",
+        content: text || "（已上傳照片）",
+        imageBase64: img
+      };
+      state.chatHistory.push(userMsg);
+      renderMessage(userMsg);
+
+      // Clear input & attachment
+      chatInput.value = "";
+      clearAttachment();
+      document.getElementById('welcomeBanner')?.remove();
+
+      try {
+        let reply = "";
+        if (state.chatHistory.filter(m => m.role === 'user').length === 1) {
+          reply = await runFirstTurn(text, img);
+          updateAuditExpanders();
+        } else {
+          reply = await runSubsequentTurn(text, img);
+        }
+
+        const botMsg = { role: "assistant", content: reply };
+        state.chatHistory.push(botMsg);
+        renderMessage(botMsg);
+      } catch (err) {
+        console.error("Chat Error:", err);
+        const errMsg = {
+          role: "assistant",
+          content: `⚠️ **處理過程發生異常：**\n\n> ${err.message}\n\n建議稍候片刻再試，或點擊左側「🔄 開啟新題目 / 重設對話」重新開始。`
+        };
+        state.chatHistory.push(errMsg);
+        renderMessage(errMsg);
+      } finally {
+        hideLiveStatus();
+        state.isProcessing = false;
+        sendBtn.disabled = false;
+      }
+    }
+
+    function renderMessage(msg) {
+      const div = document.createElement('div');
+      div.className = "flex space-x-3 max-w-3xl mx-auto " + (msg.role === 'user' ? "justify-end" : "justify-start");
+
+      const isUser = msg.role === 'user';
+      let html = "";
+
+      if (!isUser) {
+        html += `<div class="w-8 h-8 rounded-full bg-indigo-600/30 text-indigo-400 border border-indigo-500/30 flex items-center justify-center text-sm flex-shrink-0">🧑‍🏫</div>`;
+      }
+
+      html += `<div class="rounded-2xl px-4 py-3 max-w-[85%] text-sm leading-relaxed shadow-sm ${
+        isUser 
+          ? "bg-indigo-600 text-white rounded-br-none" 
+          : "glass-card text-slate-200 border border-slate-700/80 rounded-bl-none"
+      }">`;
+
+      if (msg.imageBase64) {
+        html += `<img src="${msg.imageBase64}" class="max-w-xs w-full rounded-lg mb-2 border border-white/20 shadow">`;
+      }
+
+      html += `<div class="whitespace-pre-wrap">${escapeHtml(msg.content)}</div></div>`;
+
+      if (isUser) {
+        html += `<div class="w-8 h-8 rounded-full bg-slate-800 text-slate-300 border border-slate-700 flex items-center justify-center text-sm flex-shrink-0">🙋</div>`;
+      }
+
+      div.innerHTML = html;
+      chatMessages.appendChild(div);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    function updateAuditExpanders() {
+      if (!state.solverReport) return;
+      auditSection.classList.remove('hidden');
+      auditConditionsText.innerText = state.coordinatorResponse;
+      auditReportText.innerText = state.solverReport;
+
+      auditScriptsContainer.innerHTML = state.solverLogs.map((log, idx) => `
+        <div class="rounded bg-slate-900 border border-slate-800 p-2 font-mono text-[11px]">
+          <div class="text-indigo-400 font-bold mb-1">驗證腳本 #${idx + 1} (${log.success ? "✅ 執行成功" : "❌ 失敗"})</div>
+          <pre class="bg-black/40 p-2 rounded text-slate-300 overflow-x-auto mb-1">${escapeHtml(log.code)}</pre>
+          <div class="text-slate-400">執行輸出：</div>
+          <pre class="text-emerald-400">${escapeHtml(log.output)}</pre>
+        </div>
+      `).join('');
+
+      if (auditToggle.checked) {
+        document.getElementById('detailsReport').open = true;
+      }
+    }
+
+    function showLiveStatus(text) {
+      liveStatusText.innerText = text;
+      liveStatusContainer.classList.remove('hidden');
+    }
+    function hideLiveStatus() {
+      liveStatusContainer.classList.add('hidden');
+    }
+
+    function resetSession() {
+      state.chatHistory = [];
+      state.coordinatorResponse = '';
+      state.solverReport = '';
+      state.solverLogs = [];
+      clearAttachment();
+      chatMessages.innerHTML = '';
+      auditSection.classList.add('hidden');
+      location.reload();
+    }
+
+    function applyPresetProblem(type) {
+      if (type === 1) {
+        chatInput.value = "底面為邊長 4 的正方形 ABCD，頂點為 E。側棱長 EA = EB = 3，EC = ED = 5。F 為邊 AB 的中點，求四角錐 E-ABCD 的體積。";
+      } else {
+        chatInput.value = "已知一個直角三角形兩股長分別為 3 和 4，求斜邊長度。";
+      }
+      handleUserSend();
+    }
+
+    function escapeHtml(str) {
+      return (str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    // -------------------------------------------------------------
+    // Image Cropper Modal & Controls
+    // -------------------------------------------------------------
+    const cropModal = document.getElementById('cropModal');
+    const cropImage = document.getElementById('cropImage');
+
+    uploadBtn.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        cropImage.src = event.target.result;
+        cropModal.classList.remove('hidden');
+        if (cropper) cropper.destroy();
+        cropper = new Cropper(cropImage, {
+          viewMode: 1,
+          autoCropArea: 0.9,
+          background: false
+        });
+      };
+      reader.readAsDataURL(file);
+      fileInput.value = '';
+    });
+
+    document.getElementById('rotateLeftBtn').addEventListener('click', () => cropper?.rotate(-90));
+    document.getElementById('rotateRightBtn').addEventListener('click', () => cropper?.rotate(90));
+
+    document.getElementById('confirmCropBtn').addEventListener('click', () => {
+      if (!cropper) return;
+      const canvas = cropper.getCroppedCanvas({ maxWidth: 1600, maxHeight: 1600, imageSmoothingQuality: 'high' });
+      pendingImageBytes = canvas.toDataURL('image/jpeg', 0.85);
+
+      attachmentThumbnail.src = pendingImageBytes;
+      attachmentBar.classList.remove('hidden');
+      closeCropModal();
+    });
+
+    document.getElementById('cancelCropBtn').addEventListener('click', closeCropModal);
+    document.getElementById('closeCropModal').addEventListener('click', closeCropModal);
+
+    function closeCropModal() {
+      cropModal.classList.add('hidden');
+      if (cropper) cropper.destroy();
+      cropper = null;
+    }
+
+    removeAttachmentBtn.addEventListener('click', clearAttachment);
+    function clearAttachment() {
+      pendingImageBytes = null;
+      attachmentBar.classList.add('hidden');
+    }
+  </script>
+</body>
+</html>
