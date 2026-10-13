@@ -31,6 +31,11 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
 
+  <!-- PeerJS for WebRTC P2P Mobile-to-PC Sync -->
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <!-- QRCode.js for generating QR code on canvas -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
   <!-- Pyodide (Python in WebAssembly with SymPy) -->
   <script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
 
@@ -236,6 +241,93 @@
       </div>
 
     </main>
+  </div>
+
+  <!-- Upload Draft Modal (Mobile QR / PC File) -->
+  <div id="uploadDraftModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="glass-card bg-slate-900 rounded-2xl max-w-xl w-full flex flex-col overflow-hidden border border-slate-700 shadow-2xl">
+      <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+        <h3 class="font-bold text-white text-sm">📷 上傳照片 (題目或草稿)</h3>
+        <button id="closeUploadModalBtn" class="text-slate-400 hover:text-white text-base">✕</button>
+      </div>
+
+      <!-- Tab Buttons -->
+      <div class="flex border-b border-slate-800 bg-slate-950/60">
+        <button id="tabMobileBtn" class="flex-1 py-3 text-xs font-semibold text-indigo-400 border-b-2 border-indigo-500 bg-indigo-500/10 transition">
+          📲 手機拍照即時上傳
+        </button>
+        <button id="tabPcBtn" class="flex-1 py-3 text-xs font-semibold text-slate-400 hover:text-slate-200 border-b-2 border-transparent transition">
+          📁 從電腦選擇檔案
+        </button>
+      </div>
+
+      <!-- Tab Content: Mobile QR -->
+      <div id="tabMobileContent" class="p-6">
+        <div class="flex flex-col sm:flex-row items-center sm:space-x-6 space-y-4 sm:space-y-0">
+          <div class="bg-white p-3 rounded-2xl shadow-lg flex-shrink-0 flex items-center justify-center w-48 h-48">
+            <div id="qrCodeContainer" class="w-full h-full flex items-center justify-center">
+              <span class="text-slate-400 text-xs animate-pulse">正在生成 QR Code...</span>
+            </div>
+          </div>
+          <div class="space-y-2.5 text-xs">
+            <h4 class="font-bold text-white text-sm">📐 手機即拍即傳助手</h4>
+            <ol class="space-y-1.5 text-slate-300 list-decimal list-inside leading-relaxed">
+              <li>用手機相機掃描左側 QR 碼，開啟極簡拍照畫面。</li>
+              <li>拍下題目或手寫算式，點擊「傳送給電腦」。</li>
+              <li>電腦大螢幕將在 1 秒內自動接收並開啟裁剪工具！</li>
+            </ol>
+            <div id="pcP2pStatus" class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+              <span class="w-2 h-2 rounded-full bg-indigo-400 mr-2 animate-ping"></span>等待手機掃碼中...
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab Content: PC File -->
+      <div id="tabPcContent" class="p-6 hidden">
+        <label for="fileInput" class="border-2 border-dashed border-slate-700 hover:border-indigo-500 rounded-2xl p-10 flex flex-col items-center justify-center cursor-pointer bg-slate-950/40 transition">
+          <span class="text-4xl mb-2">📁</span>
+          <span class="text-sm font-semibold text-slate-200">點此選取電腦圖片檔案</span>
+          <span class="text-xs text-slate-500 mt-1">支援 JPG, PNG, WEBP</span>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mobile Transmitter View (Active when ?remote= / #remote= is present) -->
+  <div id="mobileTransmitterView" class="fixed inset-0 bg-[#0f172a] text-slate-100 p-6 flex flex-col justify-between z-[999] hidden">
+    <div class="space-y-3">
+      <div class="flex items-center space-x-3">
+        <span class="text-3xl">📱</span>
+        <div>
+          <h2 class="text-lg font-bold text-white">101 數學家教 - 手機拍照傳送</h2>
+          <p class="text-xs text-indigo-400">一鍵將題目照片即時傳送至電腦大螢幕</p>
+        </div>
+      </div>
+      <div id="mobileConnStatus" class="p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-xs text-indigo-300 flex items-center space-x-2">
+        <span class="w-2 h-2 rounded-full bg-indigo-400 animate-pulse"></span>
+        <span id="mobileConnStatusText">🔄 正在與電腦大螢幕建立點對點連線...</span>
+      </div>
+    </div>
+
+    <div class="my-auto py-6 flex flex-col items-center justify-center space-y-4">
+      <label id="mobileCameraBox" for="mobileCameraInput" class="w-full max-w-xs aspect-video border-2 border-dashed border-indigo-500/40 hover:border-indigo-500 rounded-2xl flex flex-col items-center justify-center cursor-pointer bg-slate-900/60 p-4 transition text-center shadow-lg">
+        <span class="text-4xl mb-2">📸</span>
+        <span class="text-sm font-semibold text-slate-200">點此開啟相機拍照</span>
+        <span class="text-xs text-slate-500 mt-1">拍下題目或手寫算草照片</span>
+      </label>
+      <input type="file" id="mobileCameraInput" accept="image/*" capture="environment" class="hidden">
+      <img id="mobilePreviewImg" class="max-h-64 max-w-full rounded-xl border border-slate-700 shadow-xl hidden object-contain">
+    </div>
+
+    <div class="space-y-3">
+      <button id="sendToPcBtn" disabled class="w-full py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white font-bold text-sm shadow-lg shadow-indigo-600/30 transition">
+        🚀 傳送給電腦大螢幕
+      </button>
+      <div id="mobileSuccessNotice" class="text-center text-xs text-emerald-400 font-semibold hidden">
+        ✅ 已成功傳送！請抬頭在電腦大螢幕確認裁剪範圍。
+      </div>
+    </div>
   </div>
 
   <!-- Crop & Rotate Modal -->
@@ -765,26 +857,118 @@
     // -------------------------------------------------------------
     const cropModal = document.getElementById('cropModal');
     const cropImage = document.getElementById('cropImage');
+    const uploadDraftModal = document.getElementById('uploadDraftModal');
+    const closeUploadModalBtn = document.getElementById('closeUploadModalBtn');
+    const tabMobileBtn = document.getElementById('tabMobileBtn');
+    const tabPcBtn = document.getElementById('tabPcBtn');
+    const tabMobileContent = document.getElementById('tabMobileContent');
+    const tabPcContent = document.getElementById('tabPcContent');
+    const qrCodeContainer = document.getElementById('qrCodeContainer');
+    const pcP2pStatus = document.getElementById('pcP2pStatus');
 
-    uploadBtn.addEventListener('click', () => fileInput.click());
+    let pcPeer = null;
+    let qrGenerated = false;
+
+    // Open Upload Choice Modal
+    uploadBtn.addEventListener('click', () => {
+      uploadDraftModal.classList.remove('hidden');
+      switchUploadTab('mobile');
+      initPcPeer();
+    });
+
+    closeUploadModalBtn.addEventListener('click', closeUploadModal);
+    function closeUploadModal() {
+      uploadDraftModal.classList.add('hidden');
+    }
+
+    tabMobileBtn.addEventListener('click', () => switchUploadTab('mobile'));
+    tabPcBtn.addEventListener('click', () => switchUploadTab('pc'));
+
+    function switchUploadTab(tab) {
+      if (tab === 'mobile') {
+        tabMobileContent.classList.remove('hidden');
+        tabPcContent.classList.add('hidden');
+        tabMobileBtn.className = "flex-1 py-3 text-xs font-semibold text-indigo-400 border-b-2 border-indigo-500 bg-indigo-500/10 transition";
+        tabPcBtn.className = "flex-1 py-3 text-xs font-semibold text-slate-400 hover:text-slate-200 border-b-2 border-transparent transition";
+        if (pcPeer && pcPeer.id && !qrGenerated) renderQrCode();
+      } else {
+        tabMobileContent.classList.add('hidden');
+        tabPcContent.classList.remove('hidden');
+        tabPcBtn.className = "flex-1 py-3 text-xs font-semibold text-indigo-400 border-b-2 border-indigo-500 bg-indigo-500/10 transition";
+        tabMobileBtn.className = "flex-1 py-3 text-xs font-semibold text-slate-400 hover:text-slate-200 border-b-2 border-transparent transition";
+      }
+    }
+
+    // Initialize PC P2P Receiver Peer
+    function initPcPeer() {
+      if (pcPeer && pcPeer.id) {
+        if (!qrGenerated) renderQrCode();
+        return;
+      }
+      try {
+        pcPeer = new Peer();
+        pcPeer.on('open', (id) => {
+          renderQrCode();
+        });
+        pcPeer.on('connection', (conn) => {
+          pcP2pStatus.className = "inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
+          pcP2pStatus.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-400 mr-2 animate-pulse"></span>📱 手機已連線！等待拍照傳送...';
+
+          conn.on('data', (data) => {
+            if (data && data.imageBase64) {
+              closeUploadModal();
+              openCropModalWithData(data.imageBase64);
+            }
+          });
+        });
+        pcPeer.on('error', (err) => {
+          console.warn("PeerJS PC error:", err);
+          pcP2pStatus.innerText = "連線狀態：" + err.type;
+        });
+      } catch (err) {
+        console.error("PeerJS init error:", err);
+      }
+    }
+
+    function renderQrCode() {
+      if (!pcPeer || !pcPeer.id) return;
+      qrCodeContainer.innerHTML = '';
+      const syncUrl = `${window.location.origin}${window.location.pathname}#remote=${pcPeer.id}`;
+      new QRCode(qrCodeContainer, {
+        text: syncUrl,
+        width: 168,
+        height: 168,
+        colorDark: "#0f172a",
+        colorLight: "#ffffff",
+        correctLevel: QRCode.CorrectLevel.M
+      });
+      qrGenerated = true;
+    }
+
+    // File Input Handler (PC File Upload)
     fileInput.addEventListener('change', (e) => {
       const file = e.target.files[0];
       if (!file) return;
 
       const reader = new FileReader();
       reader.onload = (event) => {
-        cropImage.src = event.target.result;
-        cropModal.classList.remove('hidden');
-        if (cropper) cropper.destroy();
-        cropper = new Cropper(cropImage, {
-          viewMode: 1,
-          autoCropArea: 0.9,
-          background: false
-        });
+        closeUploadModal();
+        openCropModalWithData(event.target.result);
       };
       reader.readAsDataURL(file);
       fileInput.value = '';
     });
+
+    function openCropModalWithData(dataUrl) {
+      cropImage.src = dataUrl;
+      cropModal.classList.remove('hidden');
+      if (cropper) cropper.destroy();
+      cropper = new Cropper(cropImage, {
+        viewMode: 1,
+        autoCropArea: 0.9,
+        background: false
+      });
+    }
 
     document.getElementById('rotateLeftBtn').addEventListener('click', () => cropper?.rotate(-90));
     document.getElementById('rotateRightBtn').addEventListener('click', () => cropper?.rotate(90));
@@ -813,6 +997,107 @@
       pendingImageBytes = null;
       attachmentBar.classList.add('hidden');
     }
+
+    // -------------------------------------------------------------
+    // Mobile Transmitter Client Mode (When phone visits #remote=...)
+    // -------------------------------------------------------------
+    function checkMobileTransmitterMode() {
+      const hash = window.location.hash || '';
+      const params = new URLSearchParams(window.location.search);
+      let targetPcId = null;
+
+      if (hash.startsWith('#remote=')) {
+        targetPcId = hash.replace('#remote=', '').trim();
+      } else if (params.get('remote')) {
+        targetPcId = params.get('remote').trim();
+      }
+
+      if (!targetPcId) return;
+
+      // Show mobile transmitter screen and hide desktop UI
+      document.getElementById('mobileTransmitterView').classList.remove('hidden');
+      const mobileStatusText = document.getElementById('mobileConnStatusText');
+      const mobileCameraInput = document.getElementById('mobileCameraInput');
+      const mobileCameraBox = document.getElementById('mobileCameraBox');
+      const mobilePreviewImg = document.getElementById('mobilePreviewImg');
+      const sendToPcBtn = document.getElementById('sendToPcBtn');
+      const mobileSuccessNotice = document.getElementById('mobileSuccessNotice');
+
+      let mobilePeer = null;
+      let pcConn = null;
+      let capturedDataUrl = null;
+
+      try {
+        mobilePeer = new Peer();
+        mobilePeer.on('open', () => {
+          mobileStatusText.innerText = "🔄 正在與電腦大螢幕建立直連通道...";
+          pcConn = mobilePeer.connect(targetPcId, { reliable: true });
+
+          pcConn.on('open', () => {
+            mobileStatusText.innerText = "🟢 已成功連線至電腦！請拍照後按傳送。";
+          });
+
+          pcConn.on('close', () => {
+            mobileStatusText.innerText = "⚠️ 電腦端已離線或關閉視窗。";
+          });
+        });
+
+        mobilePeer.on('error', (err) => {
+          mobileStatusText.innerText = "連線失敗：" + err.message;
+        });
+      } catch (err) {
+        mobileStatusText.innerText = "P2P 初始化失敗：" + err.message;
+      }
+
+      mobileCameraInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const img = new Image();
+          img.onload = () => {
+            // Compress to maximum 1600px dimension for instant P2P transfer
+            const maxDim = 1600;
+            let w = img.width;
+            let h = img.height;
+            if (w > maxDim || h > maxDim) {
+              if (w > h) { h = Math.round((h * maxDim) / w); w = maxDim; }
+              else { w = Math.round((w * maxDim) / h); h = maxDim; }
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, w, h);
+            capturedDataUrl = canvas.toDataURL('image/jpeg', 0.82);
+
+            mobilePreviewImg.src = capturedDataUrl;
+            mobilePreviewImg.classList.remove('hidden');
+            mobileCameraBox.classList.add('hidden');
+            sendToPcBtn.disabled = false;
+          };
+          img.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+
+      sendToPcBtn.addEventListener('click', () => {
+        if (!pcConn || !capturedDataUrl) return;
+        sendToPcBtn.disabled = true;
+        sendToPcBtn.innerText = "⏳ 傳送中...";
+
+        pcConn.send({ imageBase64: capturedDataUrl });
+
+        setTimeout(() => {
+          sendToPcBtn.innerText = "✅ 傳送成功";
+          mobileSuccessNotice.classList.remove('hidden');
+        }, 300);
+      });
+    }
+
+    // Run mobile check immediately
+    checkMobileTransmitterMode();
   </script>
 </body>
 </html>
