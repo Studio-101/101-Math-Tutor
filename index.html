@@ -504,6 +504,27 @@
       }
     }
 
+    function extractCandidateText(res, stageName = "回應") {
+      const candidate = res?.candidates?.[0];
+      if (!candidate) {
+        const blockReason = res?.promptFeedback?.blockReason;
+        if (blockReason) {
+          throw new Error(`內容被 Google 系統安全防護機制暫時攔截 (${blockReason})，請嘗試重新裁剪或避開周圍陰影雜訊。`);
+        }
+        throw new Error(`Google API 未回傳有效候選內容 (${stageName})，請稍候重試。`);
+      }
+      if (!candidate.content?.parts) {
+        const finishReason = candidate.finishReason || "UNKNOWN";
+        throw new Error(`${stageName}生成中斷 (${finishReason})，請更換模型或稍候再試。`);
+      }
+      const textParts = candidate.content.parts.filter(p => typeof p.text === 'string' && !p.thought);
+      if (textParts.length > 0) {
+        return textParts.map(p => p.text).join("\n").trim();
+      }
+      const anyText = candidate.content.parts.find(p => typeof p.text === 'string');
+      return anyText ? anyText.text.trim() : "";
+    }
+
     // -------------------------------------------------------------
     // Gemini API Direct Fetch Helpers
     // -------------------------------------------------------------
@@ -515,6 +536,12 @@
 
       const payload = {
         contents: contents,
+        safetySettings: [
+          { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_ONLY_HIGH" },
+          { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_ONLY_HIGH" },
+          { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_ONLY_HIGH" },
+          { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_ONLY_HIGH" }
+        ],
         generationConfig: { temperature: temperature }
       };
 
@@ -577,7 +604,7 @@
         null,
         0.2
       );
-      const coordText = coordRes.candidates[0].content.parts[0].text.trim();
+      const coordText = extractCandidateText(coordRes, "審題確認");
       state.coordinatorResponse = coordText;
 
       // 2. Math Solver with Pyodide Tool Loop
@@ -610,21 +637,24 @@
       // Function Calling Loop (up to 5 turns)
       for (let turn = 0; turn < 5; turn++) {
         const solverRes = await callGemini(solverContents, PROMPT_SOLVER, solverTools, 0.1);
-        const candidate = solverRes.candidates[0];
+        const candidate = solverRes?.candidates?.[0];
+        if (!candidate || !candidate.content?.parts) {
+          console.warn("Solver turn stopped:", candidate, solverRes);
+          break;
+        }
+
         const parts = candidate.content.parts;
-        
-        // Check for function call
         const fnCallPart = parts.find(p => p.functionCall);
-        if (fnCallPart) {
+        if (fnCallPart && fnCallPart.functionCall) {
           const fn = fnCallPart.functionCall;
           if (fn.name === "execute_math_verification_script") {
-            const pyCode = fn.args.python_code;
+            const pyCode = fn.args?.python_code || "";
             showLiveStatus(`🐍 正在執行 Python 驗證腳本 (${turn + 1}/5)...`);
             const runResult = await runPythonScript(pyCode);
             state.solverLogs.push({ code: pyCode, output: runResult.output, success: runResult.success });
 
-            // Push assistant call and tool response
-            solverContents.push({ role: "model", parts: [fnCallPart] });
+            // Preserve full model candidate content & send functionResponse
+            solverContents.push(candidate.content);
             solverContents.push({
               role: "user",
               parts: [{
@@ -638,10 +668,9 @@
           }
         }
 
-        // If no tool call, this is the final report
-        const textPart = parts.find(p => p.text);
-        if (textPart) {
-          finalSolverReport = textPart.text.trim();
+        const textParts = parts.filter(p => typeof p.text === 'string' && !p.thought);
+        if (textParts.length > 0) {
+          finalSolverReport = textParts.map(p => p.text).join("\n").trim();
           break;
         }
       }
@@ -659,7 +688,7 @@
         0.4
       );
 
-      const firstTutorMsg = tutorRes.candidates[0].content.parts[0].text.trim();
+      const firstTutorMsg = extractCandidateText(tutorRes, "鷹架教學引導");
       return firstTutorMsg;
     }
 
@@ -688,7 +717,7 @@
       });
 
       const tutorRes = await callGemini(contents, tutorSystem, null, 0.4);
-      return tutorRes.candidates[0].content.parts[0].text.trim();
+      return extractCandidateText(tutorRes, "對話回覆");
     }
 
     // -------------------------------------------------------------
