@@ -112,7 +112,7 @@
         <div class="pt-2">
           <label class="flex items-center space-x-2 text-xs text-slate-300 cursor-pointer select-none">
             <input type="checkbox" id="auditToggle" class="rounded border-slate-700 bg-slate-900 text-indigo-600 focus:ring-indigo-500">
-            <span>🛠️ 始終顯示幕後雙軌驗證報告</span>
+            <span>🛠️ 顯示幕後雙軌驗證報告</span>
           </label>
         </div>
 
@@ -144,7 +144,7 @@
           <div id="auditConditionsText" class="p-3 border-t border-slate-700/50 text-slate-300 whitespace-pre-wrap leading-relaxed font-mono"></div>
         </details>
         
-        <details id="detailsReport" class="rounded-lg bg-slate-800/40 border border-slate-700/60 text-xs">
+        <details id="detailsReport" class="rounded-lg bg-slate-800/40 border border-slate-700/60 text-xs hidden">
           <summary class="px-3 py-2 cursor-pointer font-medium text-indigo-300 hover:text-indigo-200 flex items-center justify-between">
             <span>🔍 檢視 AI 幕後雙軌驗證報告與 Python (SymPy) 腳本</span>
           </summary>
@@ -356,6 +356,12 @@
 
     document.getElementById('mobileMenuBtn').addEventListener('click', () => {
       document.getElementById('sidebarContent').classList.toggle('hidden');
+    });
+
+    auditToggle.checked = localStorage.getItem('show_audit_report') === 'true';
+    auditToggle.addEventListener('change', () => {
+      localStorage.setItem('show_audit_report', auditToggle.checked ? 'true' : 'false');
+      updateAuditVisibility();
     });
 
     resetChatBtn.addEventListener('click', resetSession);
@@ -693,24 +699,33 @@
       chatMessages.scrollTop = chatMessages.scrollHeight;
     }
 
+    function updateAuditVisibility() {
+      const detailsReport = document.getElementById('detailsReport');
+      if (auditToggle.checked && state.solverReport) {
+        detailsReport.classList.remove('hidden');
+      } else {
+        detailsReport.classList.add('hidden');
+      }
+    }
+
     function updateAuditExpanders() {
-      if (!state.solverReport) return;
+      if (!state.coordinatorResponse) return;
       auditSection.classList.remove('hidden');
       auditConditionsText.innerText = state.coordinatorResponse;
-      auditReportText.innerText = state.solverReport;
 
-      auditScriptsContainer.innerHTML = state.solverLogs.map((log, idx) => `
-        <div class="rounded bg-slate-900 border border-slate-800 p-2 font-mono text-[11px]">
-          <div class="text-indigo-400 font-bold mb-1">驗證腳本 #${idx + 1} (${log.success ? "✅ 執行成功" : "❌ 失敗"})</div>
-          <pre class="bg-black/40 p-2 rounded text-slate-300 overflow-x-auto mb-1">${escapeHtml(log.code)}</pre>
-          <div class="text-slate-400">執行輸出：</div>
-          <pre class="text-emerald-400">${escapeHtml(log.output)}</pre>
-        </div>
-      `).join('');
-
-      if (auditToggle.checked) {
-        document.getElementById('detailsReport').open = true;
+      if (state.solverReport) {
+        auditReportText.innerText = state.solverReport;
+        auditScriptsContainer.innerHTML = state.solverLogs.map((log, idx) => `
+          <div class="rounded bg-slate-900 border border-slate-800 p-2 font-mono text-[11px]">
+            <div class="text-indigo-400 font-bold mb-1">驗證腳本 #${idx + 1} (${log.success ? "✅ 執行成功" : "❌ 失敗"})</div>
+            <pre class="bg-black/40 p-2 rounded text-slate-300 overflow-x-auto mb-1">${escapeHtml(log.code)}</pre>
+            <div class="text-slate-400">執行輸出：</div>
+            <pre class="text-emerald-400">${escapeHtml(log.output)}</pre>
+          </div>
+        `).join('');
       }
+
+      updateAuditVisibility();
     }
 
     function showLiveStatus(text) {
