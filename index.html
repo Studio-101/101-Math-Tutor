@@ -97,7 +97,6 @@
             <option value="gemini-4-argon">Gemini 4 Argon (新模型・複雜任務)</option>
             <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro (進階推論)</option>
             <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash-Lite (回覆最快)</option>
-            <option value="gemini-2.5-flash">Gemini 2.5 Flash (經典高相容)</option>
           </select>
         </div>
 
@@ -565,7 +564,7 @@
         if (status === 429) {
           throw new Error("429 RESOURCE_EXHAUSTED: Gemini API 請求頻率已達上限，請稍候 30 秒再試。");
         } else if (status === 503) {
-          throw new Error("503 UNAVAILABLE: Google 伺服器繁忙，請切換至 Gemini 2.5 Flash 或稍候重試。");
+          throw new Error("503 UNAVAILABLE: Google 伺服器繁忙，請切換至 Gemini 3.8 Flash 或稍候重試。");
         } else if (status === 400 && msg.includes("API key")) {
           throw new Error("400 API_KEY_INVALID: Gemini API Key 無效，請檢查側邊欄金鑰。");
         } else {

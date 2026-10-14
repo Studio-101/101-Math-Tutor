@@ -137,7 +137,7 @@ def format_friendly_error(e: Exception, action_desc: str = "解題") -> str:
             "**建議排解方式：**\n"
             "1. 請稍候約 30～60 秒後，在下方再次發送訊息重試。\n"
             "2. 或至左側側邊欄更換另一組免費 Gemini API Key。\n"
-            "3. 亦可在側邊欄嘗試切換模型（如 Gemini 2.5 Flash）。"
+            "3. 亦可在側邊欄嘗試切換模型（如 Gemini 3.8 Flash）。"
         )
     elif "API_KEY_INVALID" in err_str or "api key not valid" in err_str.lower() or "invalid api key" in err_str.lower():
         return (
@@ -175,7 +175,6 @@ with st.sidebar:
         "gemini-4-argon": "Gemini 4 Argon (新模型・複雜任務)",
         "gemini-3.1-pro-preview": "Gemini 3.1 Pro (進階推論)",
         "gemini-3.5-flash-lite": "Gemini 3.5 Flash-Lite (回覆最快)",
-        "gemini-2.5-flash": "Gemini 2.5 Flash (經典高相容)",
     }
 
     selected_model = st.selectbox(
