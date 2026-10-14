@@ -209,7 +209,7 @@ if not api_key_input:
         st.title("🎓 101事務所數學家教")
     with col_t2:
         st.link_button("🎬 觀看製作影片", PROJECT_VIDEO_URL, use_container_width=True)
-    st.caption("你的專屬學測數學家教，帶你一步步想通每道難題")
+    st.caption("你的專屬 AI 數學家教，帶你一步步想通每道難題")
 
     st.warning("⚠️ 尚未偵測到 Gemini API Key，請在左側側邊欄輸入金鑰以開始使用。")
 
@@ -418,7 +418,7 @@ with col_main_t1:
     st.title("🎓 101事務所數學家教")
 with col_main_t2:
     st.link_button("🎬 觀看製作影片", PROJECT_VIDEO_URL, use_container_width=True)
-st.caption("你的專屬學測數學家教，帶你一步步想通每道難題")
+st.caption("你的專屬 AI 數學家教，帶你一步步想通每道難題")
 
 # Top Collapsible Cards (Available after problem is verified)
 if st.session_state.get("coordinator_response"):
