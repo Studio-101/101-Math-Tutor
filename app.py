@@ -171,11 +171,11 @@ with st.sidebar:
     )
 
     MODEL_OPTIONS = {
-        "gemini-3.8-flash": "Gemini 3.8 Flash (最新次世代，極速推薦)",
-        "gemini-3.7-flash": "Gemini 3.7 Flash (旗艦推理)",
-        "gemini-3.1-pro-preview": "Gemini 3.1 Pro (頂級複雜數學推導)",
-        "gemini-2.5-flash": "Gemini 2.5 Flash (穩定高性價比)",
-        "gemini-2.5-pro": "Gemini 2.5 Pro (深度邏輯分析)",
+        "gemini-3.8-flash": "Gemini 3.8 Flash (全方位協助・推薦)",
+        "gemini-4-argon": "Gemini 4 Argon (新模型・複雜任務)",
+        "gemini-3.1-pro-preview": "Gemini 3.1 Pro (進階推論)",
+        "gemini-3.5-flash-lite": "Gemini 3.5 Flash-Lite (回覆最快)",
+        "gemini-2.5-flash": "Gemini 2.5 Flash (經典高相容)",
     }
 
     selected_model = st.selectbox(
