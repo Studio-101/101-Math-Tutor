@@ -3,7 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>🎓 101事務所數學家教 - 單一檔案免部屬版</title>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>🎓 101 數學家教 - 你的專屬 AI 家教</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220%22%20width=%22100%22%20height=%22100%22><text y=%22.9em%22 font-size=%2290%22>🎓</text></svg>">
   
   <!-- Tailwind CSS -->
@@ -1031,14 +1034,28 @@
     });
 
     function openCropModalWithData(dataUrl) {
-      cropImage.src = dataUrl;
       cropModal.classList.remove('hidden');
-      if (cropper) cropper.destroy();
-      cropper = new Cropper(cropImage, {
-        viewMode: 1,
-        autoCropArea: 0.9,
-        background: false
-      });
+      if (cropper) {
+        cropper.destroy();
+        cropper = null;
+      }
+      const initCropper = () => {
+        if (cropper) cropper.destroy();
+        cropper = new Cropper(cropImage, {
+          viewMode: 1,
+          autoCropArea: 0.9,
+          background: false,
+          responsive: true,
+          restore: false,
+          checkCrossOrigin: false,
+          checkOrientation: true,
+        });
+      };
+      cropImage.onload = initCropper;
+      cropImage.src = dataUrl;
+      if (cropImage.complete) {
+        initCropper();
+      }
     }
 
     document.getElementById('rotateLeftBtn').addEventListener('click', () => cropper?.rotate(-90));
