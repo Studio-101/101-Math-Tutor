@@ -935,8 +935,13 @@
     let pcPeer = null;
     let qrGenerated = false;
 
-    // Open Upload Choice Modal
+    // Open Upload Choice Modal (Mobile directly opens camera/photo; PC opens QR sync modal)
     uploadBtn.addEventListener('click', () => {
+      const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.innerWidth <= 768;
+      if (isMobile) {
+        fileInput.click();
+        return;
+      }
       uploadDraftModal.classList.remove('hidden');
       switchUploadTab('mobile');
       initPcPeer();
